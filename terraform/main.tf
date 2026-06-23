@@ -12,14 +12,13 @@ provider "aws" {
     region = "eu-central-1"
 }
 
-
-# my static portfolio site, the reason i encode it is because sometimes it can have weird looking characters that if not properly encoded is hard to put it in the ec2 easily
+# my static portfolio html, base64 encoded so any special characters don't break the shell script in user_data
 locals {
-    html = base64encode(file("${path.module}/../myPortfolioWebsite/index.html"))
+  html = base64encode(file("${path.module}/../myPortfolioWebsite/index.html"))
 }
 
 
-# My data sources, these are things from aws that i query for read only only
+
 
 
 # this is cloudfronts list of domain prefixes, the reason i have this is because i want my load balancer to only be accessesd with cloud front and i want to security lock it from this origin only
@@ -120,22 +119,21 @@ resource "aws_lb_listener" "my_listeners_for_lb" {
   protocol = "HTTP"
 }
 
-# my tempalte file for my ec2, this will install nginx and in the website document there is an index html, that has been encoded
+# my template file for my ec2, this will install nginx and serve my portfolio html
 resource "aws_launch_template" "my_ec2_template" {
   vpc_security_group_ids = [aws_security_group.my_ec2s_sg.id] # attached to the actual security group
-  image_id = "ami-0faab6bdbac9486fb"  #this is ubuntu 22 ( i just used this os personally for a while)
-  instance_type = "t3a.nano"  # the cheapsest i could find, but it's still expensive and power full enough for just a portfolio website. ( hopefully this coruce will be graded soon, or it's chop by money, chop my money, chop my money)
+  image_id      = "ami-0faab6bdbac9486fb" # ubuntu 22
+  instance_type = "t3a.nano"              # cheapest i could find, enough for a portfolio site
 
-#here all am doing is updating my repos, then install nginx, and copy my html from above to the index.html, when nginx ses this it knows, how to serve it ( since it's named index.html) also my site is very basic
-# btw the now field is there because witgout it, then nginx wont be up at this moment, it will wait for the next restart
-user_data = base64encode(join("\n", [
+  # update repos, install nginx, decode the html from locals and write it to the nginx web root, start nginx
+  # the --now flag on systemctl means start it right away, not just on next reboot
+  user_data = base64encode(join("\n", [
     "#!/bin/bash",
     "apt-get update -y",
     "apt-get install -y nginx",
     "echo '${local.html}' | base64 -d > /var/www/html/index.html",
     "systemctl enable --now nginx"
   ]))
-
 }
 
 
@@ -177,6 +175,7 @@ resource "aws_cloudwatch_metric_alarm" "cpu_over_75_percent" {
   metric_name = "CPUUtilization" # this is what i am evaluating
   namespace = "AWS/EC2"
   period = 120
+   statistic = "Average"
   threshold = 75
   dimensions = {
     AutoScalingGroupName = aws_autoscaling_group.my_web_autoscalers.name
@@ -192,6 +191,7 @@ resource "aws_cloudwatch_metric_alarm" "cpu_around_25_percent" {
   metric_name         = "CPUUtilization"
   namespace           = "AWS/EC2"
   period              = 120
+  statistic = "Average"
   threshold = 25
   dimensions = {
     AutoScalingGroupName = aws_autoscaling_group.my_web_autoscalers.name
