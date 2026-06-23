@@ -9,9 +9,7 @@ terraform {
 
 # my main region
 provider "aws" {
-    region = {
-        default = "eu-central-1"
-    }
+    region = "eu-central-1"
 }
 
 
@@ -142,4 +140,110 @@ user_data = base64encode(join("\n", [
     "systemctl enable --now nginx"
   ]))
 
+}
+
+
+resource "aws_autoscaling_group" "my_web_autoscalers" {
+   launch_template {
+    id = aws_launch_template.my_ec2_template.id # this is the above one, so my autoscalers always use this when they scale up and dow
+    version = "$Latest"
+  }
+  min_size = 2
+  max_size = 5 # hopefully it wont reach here, even the cheap one is expensive.
+  vpc_zone_identifier = data.aws_subnets.my_subnets.ids
+  target_group_arns = [aws_lb_target_group.my_ec2_groups.arn]
+  health_check_type = "ELB"
+ 
+}
+
+# add one ec2
+resource "aws_autoscaling_policy" "add_1_ec2" {
+  name = "add-1-ec2"
+  autoscaling_group_name = aws_autoscaling_group.my_web_autoscalers.name
+  adjustment_type = "ChangeInCapacity"
+  scaling_adjustment = 1
+}
+
+# remove one ec2
+resource "aws_autoscaling_policy" "remove_1_ec2" {
+  name = "remove-1-ec2"
+  autoscaling_group_name = aws_autoscaling_group.my_web_autoscalers.name
+  adjustment_type = "ChangeInCapacity"
+  scaling_adjustment = -1
+}
+
+# How do i decide how to add more ec2's or kill the ones i have
+# this defines that a CPU is high
+resource "aws_cloudwatch_metric_alarm" "cpu_over_75_percent" {
+  alarm_name = "my-ec2-is-high"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods = 2 # as in min
+  metric_name = "CPUUtilization" # this is what i am evaluating
+  namespace = "AWS/EC2"
+  period = 120
+  threshold = 75
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.my_web_autoscalers.web.name
+  }
+  alarm_actions = [aws_autoscaling_policy.add_1_ec2.arn]
+}
+
+# this defines that a CPU is low
+resource "aws_cloudwatch_metric_alarm" "cpu_around_25_percent" {
+  alarm_name = "cpu_around_25_percent"
+    comparison_operator = "LessThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = 120
+  threshold = 25
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.my_web_autoscalers.web.name
+  }
+  alarm_actions = [aws_autoscaling_policy.remove_1_ec2.arn]
+}
+
+
+resource "aws_cloudfront_distribution" "cloudfront_cdn" {
+  # to access it everywhere
+  restrictions {
+    geo_restriction {
+      restriction_type = "none" 
+    }
+  }
+  # free ssl certificate
+  viewer_certificate {
+    cloudfront_default_certificate = true 
+  }
+
+  enabled     = true             
+  origin {
+    domain_name = aws_lb.my_load_balancer.dns_name 
+    origin_id   = "alb"                
+    custom_origin_config {
+      http_port              = 80          
+      https_port             = 443         
+      origin_protocol_policy = "http-only" 
+      origin_ssl_protocols   = ["TLSv1.2"] 
+    }
+  }
+  default_cache_behavior {
+    allowed_methods        = ["GET", "HEAD"]     
+    cached_methods         = ["GET", "HEAD"]    
+    target_origin_id       = "alb"              
+    viewer_protocol_policy = "redirect-to-https" 
+
+    forwarded_values {
+      query_string = false 
+
+      cookies {
+        forward = "none" 
+      }
+    }
+
+  }
+
+ 
+  
+  
 }
