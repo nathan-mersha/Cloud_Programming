@@ -89,8 +89,8 @@ resource "aws_security_group" "my_ec2s_sg" {
 
 
 # the load balancer and it's components
-resource "aws_lb" "my_load_balancer" {
-  name = "my_load_balancer"
+resource "aws_lb" "myLoadBalancer" {
+  name = "myLoadBalancer"
  
  
  
@@ -101,14 +101,14 @@ resource "aws_lb" "my_load_balancer" {
 
 # not hard coded ec2, because they scale up and down, this target groups 
 resource "aws_lb_target_group" "my_ec2_groups" {
-  name = "my_ec2_groups"
+  name = "myEc2Groups"
   port = 80
   protocol = "HTTP"
 }
 
 # this is actually the one responsible to forward the requests from the load balancer to the ec2's
 resource "aws_lb_listener" "my_listeners_for_lb" {
-  load_balancer_arn = aws_lb.my_load_balancer.arn
+  load_balancer_arn = aws_lb.myLoadBalancer.arn
   
   default_action {
     type = "forward"
@@ -122,13 +122,8 @@ resource "aws_lb_listener" "my_listeners_for_lb" {
 # my tempalte file for my ec2, this will install nginx and in the website document there is an index html, that has been encoded
 resource "aws_launch_template" "my_ec2_template" {
   vpc_security_group_ids = [aws_security_group.my_ec2s_sg.id] # attached to the actual security group
-  image_id = {
-   
-    default = "ami-0faab6bdbac9486fb" #this is ubuntu 22 ( i just used this os personally for a while)
-  }
-  instance_type = {
-    default = "t3a.nano" # the cheapsest i could find, but it's still expensive and power full enough for just a portfolio website. ( hopefully this coruce will be graded soon, or it's chop by money, chop my money, chop my money)
-  }
+  image_id = "ami-0faab6bdbac9486fb"  #this is ubuntu 22 ( i just used this os personally for a while)
+  instance_type = "t3a.nano"  # the cheapsest i could find, but it's still expensive and power full enough for just a portfolio website. ( hopefully this coruce will be graded soon, or it's chop by money, chop my money, chop my money)
 
 #here all am doing is updating my repos, then install nginx, and copy my html from above to the index.html, when nginx ses this it knows, how to serve it ( since it's named index.html) also my site is very basic
 # btw the now field is there because witgout it, then nginx wont be up at this moment, it will wait for the next restart
@@ -183,7 +178,7 @@ resource "aws_cloudwatch_metric_alarm" "cpu_over_75_percent" {
   period = 120
   threshold = 75
   dimensions = {
-    AutoScalingGroupName = aws_autoscaling_group.my_web_autoscalers.web.name
+    AutoScalingGroupName = aws_autoscaling_group.my_web_autoscalers.name
   }
   alarm_actions = [aws_autoscaling_policy.add_1_ec2.arn]
 }
@@ -198,7 +193,7 @@ resource "aws_cloudwatch_metric_alarm" "cpu_around_25_percent" {
   period              = 120
   threshold = 25
   dimensions = {
-    AutoScalingGroupName = aws_autoscaling_group.my_web_autoscalers.web.name
+    AutoScalingGroupName = aws_autoscaling_group.my_web_autoscalers.name
   }
   alarm_actions = [aws_autoscaling_policy.remove_1_ec2.arn]
 }
@@ -218,7 +213,7 @@ resource "aws_cloudfront_distribution" "cloudfront_cdn" {
 
   enabled     = true             
   origin {
-    domain_name = aws_lb.my_load_balancer.dns_name 
+    domain_name = aws_lb.myLoadBalancer.dns_name 
     origin_id   = "alb"                
     custom_origin_config {
       http_port              = 80          
