@@ -96,7 +96,7 @@ resource "aws_lb" "myLoadBalancer" {
  
   security_groups = [aws_security_group.my_application_load_balancer_sg.id] #here assigning my actual secuiryt group i crated above to my lb
 
- subnets = data.aws_subnets.my_subnets
+ subnets =  data.aws_subnets.my_subnets.ids
 }
 
 # not hard coded ec2, because they scale up and down, this target groups 
@@ -104,6 +104,7 @@ resource "aws_lb_target_group" "my_ec2_groups" {
   name = "myEc2Groups"
   port = 80
   protocol = "HTTP"
+  vpc_id = data.aws_vpc.my_vpc.id
 }
 
 # this is actually the one responsible to forward the requests from the load balancer to the ec2's
